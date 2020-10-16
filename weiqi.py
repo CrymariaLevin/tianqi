@@ -20,11 +20,13 @@ class Application(Tk):
 		# 相对九路棋盘的矫正比例
 		self.p = 1 #if self.mode_num == 9 else (2 / 3 if self.mode_num == 13 else 4 / 9)
 		# 定义棋盘阵列,超过边界：-1，无子：0，黑棋：1，白棋：2
-		self.positions = [[0 for i in range(self.mode_num + 2)] for i in range(self.mode_num + 2)]
+		self.positions = [[0 for i in range(self.mode_num + 1)] for i in range(self.mode_num + 1)]
+		# 吃子删除列表
+		self.dead_list = []
 		# 初始化棋盘，所有超过边界的值置-1
-		for m in range(self.mode_num + 2):
-			for n in range(self.mode_num + 2):
-				if (m * n == 0 or m == self.mode_num + 2 or n == self.mode_num + 2):
+		for m in range(self.mode_num + 1):
+			for n in range(self.mode_num + 1):
+				if (m * n == 0 or m == self.mode_num or n == self.mode_num):
 					self.positions[m][n] = -1
 		# 拷贝三份棋盘“快照”，悔棋和判断“打劫”时需要作参考，即最近的3步棋，这里的好像不太对
 		self.last_3_positions = copy.deepcopy(self.positions)
@@ -33,7 +35,7 @@ class Application(Tk):
 
 		# 记录鼠标经过的地方，用于显示shadow时
 		self.cross_last = None
-		# 当前轮到的玩家，黑：0，白：1，执黑先行
+		# 当前轮到的玩家，黑：0，白：1，执黑先行，注意后面的函数里是要+1表示为棋子，而非+1变换棋子
 		self.present = 0
 		# 初始停止运行，点击“开始游戏”运行游戏
 		self.stop = True
@@ -254,11 +256,11 @@ class Application(Tk):
 				# 获取并记录坐标（索引）, 注意这里是横纵坐标，和棋子图的索引是反的
 				x = int((event.x - 40 * self.size - dx) / self.dd + round(dx / self.dd) + 1)
 				y = int((event.y - 40 * self.size - dy) / self.dd + round(dy / self.dd) + 1)
-				print(x, y)
+				print('画面坐标：',x, y)
 				# 判断位置是否已经被占据
 				if self.positions[y][x] == 0: # 注意和上面坐标位置的区别
 					# 未被占据，则尝试占据，获得占据后能杀死的棋子列表
-					self.positions[y][x] = self.present + 1 # 标记为有子（黑或白）
+					self.positions[y][x] = self.present + 1 # 指定位置颜色，第一步必为黑棋
 					self.image_added = self.canvas_bottom.create_image( # 填上当前棋手的棋子图
 						# 这里位置和鼠标跟踪不一样是因为之前选区域的时候的比例系数0.4，但是为什么这样写不清楚
 						# event.x - dx + round(dx / self.dd) * self.dd + 16 * self.p,
@@ -269,14 +271,15 @@ class Application(Tk):
 					self.canvas_bottom.addtag_withtag('image', self.image_added)
 					# 棋子与位置标签绑定，方便“杀死”
 					self.canvas_bottom.addtag_withtag('position' + str(x) + str(y), self.image_added)
-					deadlist = self.get_deadlist(x, y)
-					# deadlist = [] if not deadlist else deadlist
-					print(deadlist)
+					# deadlist = self.get_deadlist(x, y)
+					deadlist = self.if_op_dead([y,x])
+					# print(deadlist)
 					self.kill(deadlist)
 					# 判断是否重复棋局（打劫判断）
 					if not self.last_2_positions == self.positions:
 						# 可以落子，判断是否属于有气或杀死对方其中之一
-						if len(deadlist) > 0 or self.if_dead([[x, y]], self.present + 1, [x, y]) == False:
+						# if len(deadlist) > 0 or self.if_dead([[x,y]],self.present+1,[x,y]) == False:
+						if not deadlist or len(deadlist) > 0 : # 自己写的落子判断条件
 							# 当不重复棋局，且属于有气和杀死对方其中之一时，落下棋子有效
 							if not self.regretchance == 1:
 								self.regretchance += 1
@@ -324,78 +327,134 @@ class Application(Tk):
 				# 超出边界，声音警告
 				self.bell()
 
+	def if_op_dead(self, position):
+		next_m = 1 if self.present == 0 else 1
+		temp_positions = self.positions.copy()
+		deadlist = self.dead_list.copy()
+		# print(next_m)
+		position_list = [[position[0], position[1] - 1], [position[0], position[1] + 1], [position[0] - 1, position[1]],
+						 [position[0] + 1, position[1]]]
+		# print(position_list)
+		print(self.present+1)
+		if any([temp_positions[p[0]][p[1]] == 0 for p in position_list]): # 周边有空值即可落子
+			print('落子坐标：', position)
+			temp_positions[position[0]][position[1]] = self.present+1
+			for p in position_list:
+				if temp_positions[p[0]][p[1]] == next_m+1: # 这里的next不要忘了+1
+					print('当前检测是否有气坐标：',p)
+					p_list = [[p[0], p[1] - 1], [p[0], p[1] + 1], [p[0] - 1, p[1]], [p[0] + 1, p[1]]]
+					if any([temp_positions[p1[0]][p1[1]] == 0 for p1 in p_list]):  # 如果对面的棋子周边也有气即可清空删除列表
+						deadlist = []
+					else:
+						print('继续检测：', p)
+						temp_positions[p[0]][p[1]] = self.present + 1  # 将当前检测的对面棋子变为当前自己的棋子继续检测是否有气
+						deadlist.append(p)
+						self.if_op_dead(p)
+				elif temp_positions[p[0]][p[1]] == self.present + 1:
+					pass
+				else:
+					continue
+		elif any([temp_positions[p[0]][p[1]] == next_m+1 for p in position_list]): # 如果周边有敌方棋子，要一个个检测，有可能打劫
+			for p in position_list:
+				if temp_positions[p[0]][p[1]] == next_m+1:
+					print(p)
+					temp_positions[p[0]][p[1]] = self.present+1
+					deadlist.append(p)
+					self.if_op_dead(p)
+				else:
+					continue
+		# 周边全是对面的棋子或边，可能是连吃，也可能是打劫，放在条件最后优先
+		elif self.present + 1 not in [temp_positions[p[0]][p[1]] for p in position_list] and \
+				all([temp_positions[p[0]][p[1]] != 0 for p in position_list]):
+			print('无气！落子坐标：', position)
+			deadlist.append([position[0], position[1]])
+		else:
+			pass
+		self.positions[position[0]][position[1]] = self.present + 1
+		# self.present = next_m + 1
+		# deadlist.append(position)
+		if len(deadlist) < 1:
+			return False
+		else:
+			print('最终吃子列表：', deadlist)
+			return deadlist
+
 	# 判断棋子（种类为yourChessman，位置为yourPosition）是否无气（死亡），有气则返回False，无气则返回无气棋子的列表
 	# 本函数是游戏规则的关键，初始deadlist只包含了自己的位置，每次执行时，函数尝试寻找yourPosition周围有没有空的位置，有则结束，返回False代表有气；
 	# 若找不到，则找自己四周的同类（不在deadlist中的）是否有气，即调用本函数，无气，则把该同类加入到deadlist，然后找下一个邻居，只要有一个有气，返回False代表有气；
 	# 若四周没有一个有气的同类，返回deadlist,至此结束递归
 
-	def if_dead(self, deadList, yourChessman, yourPosition):
-		# 第一个循环是看落子位置上下左右有没有气，感觉写的有点复杂，使用any函数和array矩阵处理方便点
-		for i in [-1, 1]:
-			if [yourPosition[0] + i, yourPosition[1]] not in deadList:
-				if self.positions[yourPosition[1]][yourPosition[0] + i] == 0: # 当前位置无子
-					return False
-			if [yourPosition[0], yourPosition[1] + i] not in deadList:
-				if self.positions[yourPosition[1] + i][yourPosition[0]] == 0:
-					return False
-		# 开始递归，坐标一个个移动，一共四个方向轮流递归
-		if ([yourPosition[0] + 1, yourPosition[1]] not in deadList) and (
-				self.positions[yourPosition[1]][yourPosition[0] + 1] == yourChessman): # 如果相邻棋子是同颜色的棋子
-			# 将移动后的坐标加入dead_list递归
-			midvar = self.if_dead(deadList + [[yourPosition[0] + 1, yourPosition[1]]], yourChessman,
-								  [yourPosition[0] + 1, yourPosition[1]])
-			if not midvar:
-				return False
-			else:
-				deadList += copy.deepcopy(midvar)
-		if ([yourPosition[0] - 1, yourPosition[1]] not in deadList) and (
-				self.positions[yourPosition[1]][yourPosition[0] - 1] == yourChessman):
-			midvar = self.if_dead(deadList + [[yourPosition[0] - 1, yourPosition[1]]], yourChessman,
-								  [yourPosition[0] - 1, yourPosition[1]])
-			if not midvar:
-				return False
-			else:
-				deadList += copy.deepcopy(midvar)
-		if ([yourPosition[0], yourPosition[1] + 1] not in deadList) and (
-				self.positions[yourPosition[1] + 1][yourPosition[0]] == yourChessman):
-			midvar = self.if_dead(deadList + [[yourPosition[0], yourPosition[1] + 1]], yourChessman,
-								  [yourPosition[0], yourPosition[1] + 1])
-			if not midvar:
-				return False
-			else:
-				deadList += copy.deepcopy(midvar)
-		if ([yourPosition[0], yourPosition[1] - 1] not in deadList) and (
-				self.positions[yourPosition[1] - 1][yourPosition[0]] == yourChessman):
-			midvar = self.if_dead(deadList + [[yourPosition[0], yourPosition[1] - 1]], yourChessman,
-								  [yourPosition[0], yourPosition[1] - 1])
-			if not midvar:
-				return False
-			else:
-				deadList += copy.deepcopy(midvar)
-		return deadList
-
-	# 落子后，依次判断四周是否有棋子被杀死，并返回死棋位置列表
-	def get_deadlist(self, x, y):
-		deadlist = []
-		for i in [-1, 1]:
-			if self.positions[y][x + i] == (2 if self.present == 0 else 1) and ([x + i, y] not in deadlist):
-				killList = self.if_dead([[x + i, y]], (2 if self.present == 0 else 1), [x + i, y])
-				if not killList == False:
-					deadlist += copy.deepcopy(killList)
-			if self.positions[y + i][x] == (2 if self.present == 0 else 1) and ([x, y + i] not in deadlist):
-				killList = self.if_dead([[x, y + i]], (2 if self.present == 0 else 1), [x, y + i])
-				if not killList == False:
-					deadlist += copy.deepcopy(killList)
-		return deadlist
+	# def if_dead(self, deadList, yourChessman, yourPosition):
+	# 	# 第一个循环是看落子位置上下左右有没有气，感觉写的有点复杂，使用any函数和array矩阵处理方便点
+	# 	for i in [-1, 1]:
+	# 		if [yourPosition[0] + i, yourPosition[1]] not in deadList:
+	# 			if self.positions[yourPosition[1]][yourPosition[0] + i] == 0: # 当前位置无子
+	# 				return False
+	# 		if [yourPosition[0], yourPosition[1] + i] not in deadList:
+	# 			if self.positions[yourPosition[1] + i][yourPosition[0]] == 0:
+	# 				return False
+	# 	# 开始递归，坐标一个个移动，一共四个方向轮流递归
+	# 	if ([yourPosition[0] + 1, yourPosition[1]] not in deadList) and (
+	# 			self.positions[yourPosition[1]][yourPosition[0] + 1] == yourChessman): # 如果相邻棋子是同颜色的棋子
+	# 		# 将移动后的坐标加入dead_list递归
+	# 		midvar = self.if_dead(deadList + [[yourPosition[0] + 1, yourPosition[1]]], yourChessman,
+	# 							  [yourPosition[0] + 1, yourPosition[1]])
+	# 		if not midvar:
+	# 			return False
+	# 		else:
+	# 			deadList += copy.deepcopy(midvar)
+	# 	if ([yourPosition[0] - 1, yourPosition[1]] not in deadList) and (
+	# 			self.positions[yourPosition[1]][yourPosition[0] - 1] == yourChessman):
+	# 		midvar = self.if_dead(deadList + [[yourPosition[0] - 1, yourPosition[1]]], yourChessman,
+	# 							  [yourPosition[0] - 1, yourPosition[1]])
+	# 		if not midvar:
+	# 			return False
+	# 		else:
+	# 			deadList += copy.deepcopy(midvar)
+	# 	if ([yourPosition[0], yourPosition[1] + 1] not in deadList) and (
+	# 			self.positions[yourPosition[1] + 1][yourPosition[0]] == yourChessman):
+	# 		midvar = self.if_dead(deadList + [[yourPosition[0], yourPosition[1] + 1]], yourChessman,
+	# 							  [yourPosition[0], yourPosition[1] + 1])
+	# 		if not midvar:
+	# 			return False
+	# 		else:
+	# 			deadList += copy.deepcopy(midvar)
+	# 	if ([yourPosition[0], yourPosition[1] - 1] not in deadList) and (
+	# 			self.positions[yourPosition[1] - 1][yourPosition[0]] == yourChessman):
+	# 		midvar = self.if_dead(deadList + [[yourPosition[0], yourPosition[1] - 1]], yourChessman,
+	# 							  [yourPosition[0], yourPosition[1] - 1])
+	# 		if not midvar:
+	# 			return False
+	# 		else:
+	# 			deadList += copy.deepcopy(midvar)
+	# 	return deadList
+    #
+	# # 落子后，依次判断四周是否有棋子被杀死，并返回死棋位置列表
+	# def get_deadlist(self, x, y):
+	# 	deadlist = []
+	# 	for i in [-1, 1]:
+	# 		if self.positions[y][x + i] == (2 if self.present == 0 else 1) and ([x + i, y] not in deadlist):
+	# 			killList = self.if_dead([[x + i, y]], (2 if self.present == 0 else 1), [x + i, y])
+	# 			if not killList == False:
+	# 				deadlist += copy.deepcopy(killList)
+	# 		if self.positions[y + i][x] == (2 if self.present == 0 else 1) and ([x, y + i] not in deadlist):
+	# 			killList = self.if_dead([[x, y + i]], (2 if self.present == 0 else 1), [x, y + i])
+	# 			if not killList == False:
+	# 				deadlist += copy.deepcopy(killList)
+	# 	return deadlist
 
 	# 杀死位置列表killList中的棋子，即删除图片，位置值置0
 	def kill(self, killList):
-		# if not killList:
-		# 	killList = []
+		if not killList:
+			return None
 		if len(killList) > 0:
 			for i in range(len(killList)):
-				self.positions[killList[i][1]][killList[i][0]] = 0
-				self.canvas_bottom.delete('position' + str(killList[i][0]) + str(killList[i][1]))
+				print('删除的棋子：', self.positions[killList[i][0]][killList[i][1]])
+				self.positions[killList[i][0]][killList[i][1]] = 0 # 自己写的吃子函数,坐标反的
+				# self.positions[killList[i][1]][killList[i][0]] = 0
+				# self.canvas_bottom.delete('position' + str(killList[i][0]) + str(killList[i][1])) # 同上
+				self.canvas_bottom.delete('position' + str(killList[i][1]) + str(killList[i][0]))
+				print('删除画面位置：',[str(killList[i][1]), str(killList[i][0])])
 
 	# 警告消息框，接受标题和警告信息
 	def showwarningbox(self, title, message):
@@ -417,7 +476,7 @@ class Application(Tk):
 global newApp
 newApp=False
 if __name__=='__main__':
-	# 循环，直到不切换游戏模式
+	# 循环，直到不切换游戏模式，循环是为了每次循环相当一步棋，存储了一次棋谱
 	while True:
 		newApp=False
 		app=Application()
