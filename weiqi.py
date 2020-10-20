@@ -21,8 +21,6 @@ class Application(Tk):
 		self.p = 1 #if self.mode_num == 9 else (2 / 3 if self.mode_num == 13 else 4 / 9)
 		# 定义棋盘阵列,超过边界：-1，无子：0，黑棋：1，白棋：2
 		self.positions = [[0 for i in range(self.mode_num + 1)] for i in range(self.mode_num + 1)]
-		# 吃子删除列表
-		self.dead_list = []
 		# 初始化棋盘，所有超过边界的值置-1
 		for m in range(self.mode_num + 1):
 			for n in range(self.mode_num + 1):
@@ -184,15 +182,19 @@ class Application(Tk):
 	def recover(self, list_to_recover, b_or_w):
 		if len(list_to_recover) > 0:
 			for i in range(len(list_to_recover)):
-				self.positions[list_to_recover[i][1]][list_to_recover[i][0]] = b_or_w + 1 #将对应棋子的坐标位置变为棋子的代号
-				# 将棋子位置的对应图片恢复
+				# self.positions[list_to_recover[i][1]][list_to_recover[i][0]] = b_or_w + 1 #将对应棋子的坐标位置变为棋子的代号
+				self.positions[list_to_recover[i][0]][list_to_recover[i][1]] = b_or_w + 1
+				# 将棋子位置的对应图片恢复，注意画面坐标和棋子坐标是反的。。。。
 				self.image_added = self.canvas_bottom.create_image(
-					20 * self.size + (list_to_recover[i][0] - 1) * self.dd + 4 * self.p,
-					20 * self.size + (list_to_recover[i][1] - 1) * self.dd - 5 * self.p,
+					# 40 * self.size + (list_to_recover[i][0] - 1) * self.dd + 4 * self.p,
+					# 40 * self.size + (list_to_recover[i][1] - 1) * self.dd - 5 * self.p,
+					40 * self.size + (list_to_recover[i][1] - 1) * self.dd + 4 * self.p,
+					40 * self.size + (list_to_recover[i][0] - 1) * self.dd - 5 * self.p,
 					image=self.photoWBD_list[b_or_w])
-				# self.canvas_bottom.addtag_withtag('image', self.image_added)
+				# self.canvas_bottom.addtag_withtag(
+				# 	'position' + str(list_to_recover[i][0]) + str(list_to_recover[i][1]), self.image_added)
 				self.canvas_bottom.addtag_withtag(
-					'position' + str(list_to_recover[i][0]) + str(list_to_recover[i][1]), self.image_added)
+					'position' + str(list_to_recover[i][1]) + str(list_to_recover[i][0]), self.image_added)
 
 	# 重新加载函数,删除图片，序列归零，设置一些初始参数，点击“重新开始”时调用
 	def reload(self):
@@ -260,7 +262,7 @@ class Application(Tk):
 				# 判断位置是否已经被占据
 				if self.positions[y][x] == 0: # 注意和上面坐标位置的区别
 					# 未被占据，则尝试占据，获得占据后能杀死的棋子列表
-					self.positions[y][x] = self.present + 1 # 指定位置颜色，第一步必为黑棋
+					self.positions[y][x] = self.present + 1 # 指定位置颜色，self.present为位置代号，+1才是棋子的代号
 					self.image_added = self.canvas_bottom.create_image( # 填上当前棋手的棋子图
 						# 这里位置和鼠标跟踪不一样是因为之前选区域的时候的比例系数0.4，但是为什么这样写不清楚
 						# event.x - dx + round(dx / self.dd) * self.dd + 16 * self.p,
@@ -271,15 +273,13 @@ class Application(Tk):
 					self.canvas_bottom.addtag_withtag('image', self.image_added)
 					# 棋子与位置标签绑定，方便“杀死”
 					self.canvas_bottom.addtag_withtag('position' + str(x) + str(y), self.image_added)
-					# deadlist = self.get_deadlist(x, y)
-					deadlist = self.if_op_dead([y,x])
+					deadlist = self.get_deadlist([y,x])
 					# print(deadlist)
 					self.kill(deadlist)
 					# 判断是否重复棋局（打劫判断）
 					if not self.last_2_positions == self.positions:
 						# 可以落子，判断是否属于有气或杀死对方其中之一
-						# if len(deadlist) > 0 or self.if_dead([[x,y]],self.present+1,[x,y]) == False:
-						if not deadlist or len(deadlist) > 0 : # 自己写的落子判断条件
+						if len(deadlist) > 0 or self.if_self_dead([y,x],[[y,x]],self.present) == False:
 							# 当不重复棋局，且属于有气和杀死对方其中之一时，落下棋子有效
 							if not self.regretchance == 1:
 								self.regretchance += 1
@@ -299,6 +299,7 @@ class Application(Tk):
 								outline='#3ae')
 							self.canvas_bottom.addtag_withtag('image', self.image_added_sign)
 							self.canvas_bottom.addtag_withtag('image_added_sign', self.image_added_sign)
+							# 落子
 							if self.present == 0:
 								self.create_pW()
 								self.del_pB()
@@ -327,57 +328,59 @@ class Application(Tk):
 				# 超出边界，声音警告
 				self.bell()
 
-	def if_op_dead(self, position):
-		next_m = 1 if self.present == 0 else 1
+	# 判断单个子周围有没有气
+	def get_status(self, position):
+		position_list = [[position[0], position[1] - 1], [position[0], position[1] + 1], [position[0] - 1, position[1]],
+						 [position[0] + 1, position[1]]]
+		if any([self.positions[p[0]][p[1]] == 0 for p in position_list]):  # 周边有空值即可落子
+			return True
+		elif all([self.positions[p[0]][p[1]] != 0 for p in position_list]):  # 周边无气
+			return False
+
+	# 这个函数是看当前颜色的棋子是否死了（没死返回False），如果周围没气，到周围寻找同色的邻居，将当前棋子加入deadlist，直到周围没气或者有气结束递归
+	def if_self_dead(self, position, deadlist, present):
+		# next_m = 1 if self.present == 0 else 1
 		temp_positions = self.positions.copy()
-		deadlist = self.dead_list.copy()
+		# deadlist = self.dead_list.copy()
 		# print(next_m)
 		position_list = [[position[0], position[1] - 1], [position[0], position[1] + 1], [position[0] - 1, position[1]],
 						 [position[0] + 1, position[1]]]
-		# print(position_list)
-		print(self.present+1)
-		if any([temp_positions[p[0]][p[1]] == 0 for p in position_list]): # 周边有空值即可落子
-			print('落子坐标：', position)
-			temp_positions[position[0]][position[1]] = self.present+1
-			for p in position_list:
-				if temp_positions[p[0]][p[1]] == next_m+1: # 这里的next不要忘了+1
-					print('当前检测是否有气坐标：',p)
-					p_list = [[p[0], p[1] - 1], [p[0], p[1] + 1], [p[0] - 1, p[1]], [p[0] + 1, p[1]]]
-					if any([temp_positions[p1[0]][p1[1]] == 0 for p1 in p_list]):  # 如果对面的棋子周边也有气即可清空删除列表
-						deadlist = []
-					else:
-						print('继续检测：', p)
-						temp_positions[p[0]][p[1]] = self.present + 1  # 将当前检测的对面棋子变为当前自己的棋子继续检测是否有气
-						deadlist.append(p)
-						self.if_op_dead(p)
-				elif temp_positions[p[0]][p[1]] == self.present + 1:
-					pass
-				else:
-					continue
-		elif any([temp_positions[p[0]][p[1]] == next_m+1 for p in position_list]): # 如果周边有敌方棋子，要一个个检测，有可能打劫
-			for p in position_list:
-				if temp_positions[p[0]][p[1]] == next_m+1:
-					print(p)
-					temp_positions[p[0]][p[1]] = self.present+1
-					deadlist.append(p)
-					self.if_op_dead(p)
-				else:
-					continue
-		# 周边全是对面的棋子或边，可能是连吃，也可能是打劫，放在条件最后优先
-		elif self.present + 1 not in [temp_positions[p[0]][p[1]] for p in position_list] and \
-				all([temp_positions[p[0]][p[1]] != 0 for p in position_list]):
-			print('无气！落子坐标：', position)
-			deadlist.append([position[0], position[1]])
-		else:
-			pass
-		self.positions[position[0]][position[1]] = self.present + 1
-		# self.present = next_m + 1
-		# deadlist.append(position)
-		if len(deadlist) < 1:
+		print('当前检测棋子颜色：', present+1)
+		status = self.get_status(position)
+		print('当前检测坐标：', position)
+		if status: # 周边有空值即可落子
+			# print(position,'是活的')
 			return False
 		else:
-			print('最终吃子列表：', deadlist)
-			return deadlist
+			for p in position_list: # 在周边找自己颜色的子
+				if temp_positions[p[0]][p[1]] == present+1 and p not in deadlist: # 这里不要忘了+1，而且要排除已经检测过的棋子
+					print('当前检测是否有气坐标：',p) #
+					deadlist.append(p) # 应先把当前循环的子加入到deadlist中再往下判断，防止死循环
+					r = self.if_self_dead(p, deadlist, present)
+					if not r: # 如果相邻同色棋子有气，则活（返回False）
+						return False
+					else: # 否则将当前检验的棋子加入到deal_list继续循环
+						self.if_self_dead(p, deadlist, present)  # 不能直接return，会中断循环
+				else:
+					continue
+		print('最终吃子列表：', deadlist)
+		return deadlist
+
+	def get_deadlist(self, position): # 获取要删除的棋子列表，只检查对面有没有被吃的
+		dead_list = []
+		next_m = 1 if self.present == 0 else 0
+		position_list = [[position[0], position[1] - 1], [position[0], position[1] + 1], [position[0] - 1, position[1]],
+						 [position[0] + 1, position[1]]]
+		for p in position_list:
+			# 只有周围是对面的子才需要检查对面死没死，如果自己的子下到死气里会在流程里报错，不用检查
+			if self.positions[p[0]][p[1]] == next_m+1 and p not in dead_list:
+				kill_list = self.if_self_dead(p, [p, ], next_m)
+				print('kill_list:',kill_list)
+				if not kill_list == False: # 周边无气，加入待删除列表
+					dead_list.extend(kill_list)
+			else:
+				continue
+		return dead_list
 
 	# 判断棋子（种类为yourChessman，位置为yourPosition）是否无气（死亡），有气则返回False，无气则返回无气棋子的列表
 	# 本函数是游戏规则的关键，初始deadlist只包含了自己的位置，每次执行时，函数尝试寻找yourPosition周围有没有空的位置，有则结束，返回False代表有气；
@@ -445,8 +448,8 @@ class Application(Tk):
 
 	# 杀死位置列表killList中的棋子，即删除图片，位置值置0
 	def kill(self, killList):
-		if not killList:
-			return None
+		# if not killList:
+		# 	return None
 		if len(killList) > 0:
 			for i in range(len(killList)):
 				print('删除的棋子：', self.positions[killList[i][0]][killList[i][1]])
@@ -465,13 +468,14 @@ class Application(Tk):
 	def keyboardQuit(self, event):
 		self.quit()
 
-
 # 以下函数修改全局变量值，newApp使主函数循环，以建立不同参数的对象
 	def newGame(self):
 		global mode_num,newApp
 		mode_num=10
-		newApp=True
+		newApp=True # 中断了main函数的循环
 		self.quit()
+
+
 # 声明全局变量，用于新建Application对象时切换成不同模式的游戏
 global newApp
 newApp=False
@@ -480,7 +484,7 @@ if __name__=='__main__':
 	while True:
 		newApp=False
 		app=Application()
-		app.title('围棋')
+		app.title('填棋')
 		app.mainloop()
 		if newApp:
 			app.destroy()
