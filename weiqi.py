@@ -12,6 +12,7 @@ class Application(Tk):
 	# 初始化棋盘,默认九格十路棋盘
 	def __init__(self):
 		Tk.__init__(self)
+		# global spec_step
 		# 窗口尺寸设置，默认：1.8
 		self.mode_num = 10
 		self.size = 1.8
@@ -39,6 +40,11 @@ class Application(Tk):
 		self.stop = True
 		# 悔棋次数，次数大于0才可悔棋，初始置0（初始不能悔棋），悔棋后置0，下棋或弃手时恢复为1，以禁止连续悔棋
 		self.regretchance = 0
+		# 用于特殊棋的各个参数
+		self.spec_position = None # 特殊位置记录，记录第一步的落子位置
+		self.button3_position_list = None # 特殊棋第一步落子周边
+		self.if_jump = False # 是否是从特殊步跳过来的
+		self.spec_step = 1 # 特殊步数记录，用于特殊棋
 		# 图片资源，存放在当前目录下的/Pictures/中
 		self.photoW = PhotoImage(file="./Pictures/W.png")
 		self.photoB = PhotoImage(file="./Pictures/B.png")
@@ -55,7 +61,7 @@ class Application(Tk):
 		self.canvas_bottom = Canvas(self, bg='#A0522D', bd=0, width=600 * self.size, height=400 * self.size)
 		self.canvas_bottom.place(x=0, y=0)
 
-		# 几个功能按钮, command命令都要在之后的函数里设置
+		# 几个功能按钮, command参数对应的命令都要在之后的函数里设置
 		self.startButton = Button(self, text='开始游戏', command=self.start)
 		self.startButton.place(x=480 * self.size, y=200 * self.size)
 		self.passmeButton = Button(self, text='弃手', command=self.passme)
@@ -108,8 +114,15 @@ class Application(Tk):
 		self.canvas_bottom.bind('<Motion>', self.shadow)
 		# 鼠标左键单击时，调用getdown函数，放下棋子
 		self.canvas_bottom.bind('<Button-1>', self.getDown)
+		# 鼠标右键单击时，调用getdown_spec函数，放下棋子，要传入参数需要使用中间函数
+		# self.canvas_bottom.bind('<Button-3>', self.button3_adaptor(self.getDown_spec, step=self.spec_step, position=self.spec_position))
+		self.canvas_bottom.bind('<Button-3>', self.getDown_spec)
 		# 设置退出快捷键<Ctrl>+<D>，快速退出游戏
 		self.bind('<Control-KeyPress-d>', self.keyboardQuit)
+
+	# 事件处理函数的适配器，相当于中介，用于绑定事件时添加参数
+	def button3_adaptor(self, func, **kwds):
+		return lambda event, func=func, kwds=kwds: func(event, **kwds)
 
 	# 开始游戏函数，点击“开始游戏”时调用
 	def start(self):
@@ -173,8 +186,10 @@ class Application(Tk):
 			self.recover(list_of_b, 0) # 恢复黑棋位置，下一行是白棋
 			self.recover(list_of_w, 1)
 			self.last_1_positions = copy.deepcopy(self.last_3_positions) #记录前一步的棋子位置（覆盖为前3步的棋子位置）
-			for m in range(1, self.mode_num + 1): # 将前2，前3步的棋盘记为无子
-				for n in range(1, self.mode_num + 1):
+			# for m in range(1, self.mode_num + 1): # 将前2，前3步的棋盘记为无子
+			# 	for n in range(1, self.mode_num + 1):
+			for m in range(1, self.mode_num):  # 将前2，前3步的棋盘记为无子
+				for n in range(1, self.mode_num):
 					self.last_2_positions[m][n] = 0
 					self.last_3_positions[m][n] = 0
 
@@ -182,19 +197,14 @@ class Application(Tk):
 	def recover(self, list_to_recover, b_or_w):
 		if len(list_to_recover) > 0:
 			for i in range(len(list_to_recover)):
-				# self.positions[list_to_recover[i][1]][list_to_recover[i][0]] = b_or_w + 1 #将对应棋子的坐标位置变为棋子的代号
-				self.positions[list_to_recover[i][0]][list_to_recover[i][1]] = b_or_w + 1
+				self.positions[list_to_recover[i][1]][list_to_recover[i][0]] = b_or_w + 1 #将对应棋子的坐标位置变为棋子的代号
 				# 将棋子位置的对应图片恢复，注意画面坐标和棋子坐标是反的。。。。
 				self.image_added = self.canvas_bottom.create_image(
-					# 40 * self.size + (list_to_recover[i][0] - 1) * self.dd + 4 * self.p,
-					# 40 * self.size + (list_to_recover[i][1] - 1) * self.dd - 5 * self.p,
-					40 * self.size + (list_to_recover[i][1] - 1) * self.dd + 4 * self.p,
-					40 * self.size + (list_to_recover[i][0] - 1) * self.dd - 5 * self.p,
+					40 * self.size + (list_to_recover[i][0] - 1) * self.dd + 4 * self.p,
+					40 * self.size + (list_to_recover[i][1] - 1) * self.dd - 5 * self.p,
 					image=self.photoWBD_list[b_or_w])
-				# self.canvas_bottom.addtag_withtag(
-				# 	'position' + str(list_to_recover[i][0]) + str(list_to_recover[i][1]), self.image_added)
 				self.canvas_bottom.addtag_withtag(
-					'position' + str(list_to_recover[i][1]) + str(list_to_recover[i][0]), self.image_added)
+					'position' + str(list_to_recover[i][0]) + str(list_to_recover[i][1]), self.image_added)
 
 	# 重新加载函数,删除图片，序列归零，设置一些初始参数，点击“重新开始”时调用
 	def reload(self):
@@ -204,8 +214,10 @@ class Application(Tk):
 		self.regretchance = 0
 		self.present = 0
 		self.create_pB()
-		for m in range(1, self.mode_num + 1):
-			for n in range(1, self.mode_num + 1):
+		# for m in range(1, self.mode_num + 1):
+		# 	for n in range(1, self.mode_num + 1):
+		for m in range(1, self.mode_num):
+			for n in range(1, self.mode_num):
 				self.positions[m][n] = 0
 				self.last_3_positions[m][n] = 0
 				self.last_2_positions[m][n] = 0
@@ -252,81 +264,177 @@ class Application(Tk):
 			# 先找到最近格点
 			if (40 * self.size - self.dd * 0.4 < event.x < self.dd * 0.4 + 380 * self.size) and (
 					40 * self.size - self.dd * 0.4 < event.y < self.dd * 0.4 + 380 * self.size):
-			# if (40 * self.size < event.x < 380 * self.size) and (40 * self.size < event.y < 380 * self.size):
 				dx = (event.x - 40 * self.size) % self.dd
 				dy = (event.y - 40 * self.size) % self.dd
 				# 获取并记录坐标（索引）, 注意这里是横纵坐标，和棋子图的索引是反的
 				x = int((event.x - 40 * self.size - dx) / self.dd + round(dx / self.dd) + 1)
 				y = int((event.y - 40 * self.size - dy) / self.dd + round(dy / self.dd) + 1)
 				print('画面坐标：',x, y)
+				# print('now inner step:', self.spec_step)
+				# print('self.button3_position_list',self.button3_position_list)
+				# 先看是不是属于第二步棋
+				if self.spec_step == 2:
+					if [y,x] not in self.button3_position_list:
+						self.positions[y][x] = 0
+						self.bell()
+						self.showwarningbox('非可下区域', "请落在指定位置内！")
+					else:
+						# next_m = 0 if self.present == 1 else 1
+						# print('specical next:',next_m)
+						# self.positions[y][x] = next_m + 1
+						# self.image_added = self.canvas_bottom.create_image(  # 填上当前棋手的棋子图
+						# 	event.x - dx + round(dx / self.dd) * self.dd + 4 * self.p,
+						# 	event.y - dy + round(dy / self.dd) * self.dd - 5 * self.p,
+						# 	image=self.photoWBD_list[next_m])
+						self.spec_step = 1
+						self.button3_position_list = None
+						# self.present = next_m
+						self.if_jump = True
+						self.getDown(event)
+				else: # self.step == 1
+					# 判断位置是否已经被占据
+					if self.positions[y][x] == 0: # 注意和上面坐标位置的区别
+						# 未被占据，则尝试占据，获得占据后能杀死的棋子列表
+						self.positions[y][x] = self.present + 1 # 指定位置颜色，self.present为位置代号，+1才是棋子的代号
+						self.image_added = self.canvas_bottom.create_image( # 填上当前棋手的棋子图
+							# 这里位置和鼠标跟踪不一样是因为之前选区域的时候的比例系数0.4，但是为什么这样写不清楚
+							# event.x - dx + round(dx / self.dd) * self.dd + 16 * self.p,
+							# event.y - dy + round(dy / self.dd) * self.dd - 21 * self.p,
+							event.x - dx + round(dx / self.dd) * self.dd + 4 * self.p,
+							event.y - dy + round(dy / self.dd) * self.dd - 5 * self.p,
+							image=self.photoWBD_list[self.present])
+						self.canvas_bottom.addtag_withtag('image', self.image_added)
+						# 棋子与位置标签绑定，方便“杀死”
+						self.canvas_bottom.addtag_withtag('position' + str(x) + str(y), self.image_added)
+						deadlist = self.get_deadlist([y,x])
+						# print(deadlist)
+						self.kill(deadlist)
+						# 判断是否重复棋局（打劫判断）
+						if not self.last_2_positions == self.positions:
+							# 可以落子，判断是否属于有气或杀死对方其中之一
+							if len(deadlist) > 0 or self.if_self_dead([y,x],[[y,x]],self.present) == False:
+								# 每次成功下棋后，将悔棋次数改成1
+								if not self.regretchance == 1:
+									self.regretchance += 1
+								else:
+									self.regretButton['state'] = NORMAL
+								self.last_3_positions = copy.deepcopy(self.last_2_positions)
+								self.last_2_positions = copy.deepcopy(self.last_1_positions)
+								self.last_1_positions = copy.deepcopy(self.positions)
+								# 删除上次的标记，重新创建标记
+								self.canvas_bottom.delete('image_added_sign')
+								# 画标记（本次落子），用于下一步的时候提示前一次落子位置
+								self.image_added_sign = self.canvas_bottom.create_oval(
+									event.x - dx + round(dx / self.dd) * self.dd + 0.4 * self.dd,
+									event.y - dy + round(dy / self.dd) * self.dd + 0.35 * self.dd,
+									event.x - dx + round(dx / self.dd) * self.dd - 0.35 * self.dd,
+									event.y - dy + round(dy / self.dd) * self.dd - 0.4 * self.dd, width=3,
+									outline='#3ae')
+								self.canvas_bottom.addtag_withtag('image', self.image_added_sign)
+								self.canvas_bottom.addtag_withtag('image_added_sign', self.image_added_sign)
+								# 落子后在最右侧通过太极图提示该谁下子了
+								if self.present == 0:
+									self.create_pW()
+									self.del_pB()
+									self.present = 1
+								else:
+									self.create_pB()
+									self.del_pW()
+									self.present = 0
+							else:
+								# 不属于杀死对方或有气，则判断为无气，警告并弹出警告框
+								self.positions[y][x] = 0
+								self.canvas_bottom.delete('position' + str(x) + str(y))
+								self.bell()
+								self.showwarningbox('无气', "你被包围了！")
+						else:
+							# 重复棋局，警告打劫
+							self.positions[y][x] = 0
+							self.canvas_bottom.delete('position' + str(x) + str(y))
+							self.recover(deadlist, (1 if self.present == 0 else 0))
+							self.bell()
+							self.showwarningbox("打劫", "此路不通！")
+					else:
+						# 如果是特殊步，原位置的棋子直接换为空值
+						if self.if_jump == True:
+							self.positions[y][x] = 0
+							self.canvas_bottom.delete('position' + str(x) + str(y))
+							self.if_jump = False
+							self.getDown(event)
+						else:
+							# 格子里已经有子覆盖，声音警告
+							self.bell()
+			else:
+				# 超出边界，声音警告
+				self.bell()
+
+	# 特殊下子操作, 下一子并向周围某一方向延伸一子
+	# 第一步下的子不能下到死步里（即无气且不能吃子），延伸的子无视原位置的占领情况都替换为同色子
+	# 第一步的时候无视打劫判断
+	def getDown_spec(self, event):
+		if not self.stop:
+			# 先找到最近格点
+			if (40 * self.size - self.dd * 0.4 < event.x < self.dd * 0.4 + 380 * self.size) and (
+					40 * self.size - self.dd * 0.4 < event.y < self.dd * 0.4 + 380 * self.size):
+				dx = (event.x - 40 * self.size) % self.dd
+				dy = (event.y - 40 * self.size) % self.dd
+				# 获取并记录坐标（索引）, 注意这里是横纵坐标，和棋子图的索引是反的
+				x = int((event.x - 40 * self.size - dx) / self.dd + round(dx / self.dd) + 1)
+				y = int((event.y - 40 * self.size - dy) / self.dd + round(dy / self.dd) + 1)
+				print('特殊落子第一次画面坐标：', x, y)
 				# 判断位置是否已经被占据
-				if self.positions[y][x] == 0: # 注意和上面坐标位置的区别
-					# 未被占据，则尝试占据，获得占据后能杀死的棋子列表
-					self.positions[y][x] = self.present + 1 # 指定位置颜色，self.present为位置代号，+1才是棋子的代号
-					self.image_added = self.canvas_bottom.create_image( # 填上当前棋手的棋子图
-						# 这里位置和鼠标跟踪不一样是因为之前选区域的时候的比例系数0.4，但是为什么这样写不清楚
-						# event.x - dx + round(dx / self.dd) * self.dd + 16 * self.p,
-						# event.y - dy + round(dy / self.dd) * self.dd - 21 * self.p,
+				if self.positions[y][x] == 0:
+					# 未被占据则获得占据后能杀死的棋子列表
+					self.positions[y][x] = self.present + 1
+					self.image_added = self.canvas_bottom.create_image(  # 填上当前棋手的棋子图
 						event.x - dx + round(dx / self.dd) * self.dd + 4 * self.p,
 						event.y - dy + round(dy / self.dd) * self.dd - 5 * self.p,
 						image=self.photoWBD_list[self.present])
 					self.canvas_bottom.addtag_withtag('image', self.image_added)
 					# 棋子与位置标签绑定，方便“杀死”
 					self.canvas_bottom.addtag_withtag('position' + str(x) + str(y), self.image_added)
-					deadlist = self.get_deadlist([y,x])
-					# print(deadlist)
+					deadlist = self.get_deadlist([y, x])
 					self.kill(deadlist)
-					# 判断是否重复棋局（打劫判断）
-					if not self.last_2_positions == self.positions:
-						# 可以落子，判断是否属于有气或杀死对方其中之一
-						if len(deadlist) > 0 or self.if_self_dead([y,x],[[y,x]],self.present) == False:
-							# 当不重复棋局，且属于有气和杀死对方其中之一时，落下棋子有效
-							if not self.regretchance == 1:
-								self.regretchance += 1
-							else:
-								self.regretButton['state'] = NORMAL
-							self.last_3_positions = copy.deepcopy(self.last_2_positions)
-							self.last_2_positions = copy.deepcopy(self.last_1_positions)
-							self.last_1_positions = copy.deepcopy(self.positions)
-							# 删除上次的标记，重新创建标记
-							self.canvas_bottom.delete('image_added_sign')
-							# 画标记，用于提示上次落子位置
-							self.image_added_sign = self.canvas_bottom.create_oval(
-								event.x - dx + round(dx / self.dd) * self.dd + 0.4 * self.dd,
-								event.y - dy + round(dy / self.dd) * self.dd + 0.35 * self.dd,
-								event.x - dx + round(dx / self.dd) * self.dd - 0.35 * self.dd,
-								event.y - dy + round(dy / self.dd) * self.dd - 0.4 * self.dd, width=3,
-								outline='#3ae')
+					# 判断是否能落子
+					if len(deadlist) > 0 or self.if_self_dead([y,x],[[y,x]],self.present) == False:
+						# 每次成功下棋后，将悔棋次数改成1
+						if not self.regretchance == 1:
+							self.regretchance += 1
+						else:
+							self.regretButton['state'] = NORMAL
+						self.last_3_positions = copy.deepcopy(self.last_2_positions)
+						self.last_2_positions = copy.deepcopy(self.last_1_positions)
+						self.last_1_positions = copy.deepcopy(self.positions)
+						# 删除上次的标记，重新创建标记
+						self.canvas_bottom.delete('image_added_sign')
+						# 画标记（本次落子），用于第二步的时候提示当前可落子位置
+						surroundings = [[-1,0],[1,0],[0,1],[0,-1]]
+						for m in surroundings:
+							self.image_added_sign = self.canvas_bottom.create_rectangle(
+								event.x - dx + round(dx / self.dd) * self.dd + 0.5 * self.dd + m[0] * self.dd,
+								event.y - dy + round(dy / self.dd) * self.dd + 0.5 * self.dd + m[1] * self.dd,
+								event.x - dx + round(dx / self.dd) * self.dd - 0.5 * self.dd + m[0] * self.dd,
+								event.y - dy + round(dy / self.dd) * self.dd - 0.5 * self.dd + m[1] * self.dd,
+								width=3, outline='#00FF7F')
 							self.canvas_bottom.addtag_withtag('image', self.image_added_sign)
 							self.canvas_bottom.addtag_withtag('image_added_sign', self.image_added_sign)
-							# 落子
-							if self.present == 0:
-								self.create_pW()
-								self.del_pB()
-								self.present = 1
-							else:
-								self.create_pB()
-								self.del_pW()
-								self.present = 0
-						else:
-							# 不属于杀死对方或有气，则判断为无气，警告并弹出警告框
-							self.positions[y][x] = 0
-							self.canvas_bottom.delete('position' + str(x) + str(y))
-							self.bell()
-							self.showwarningbox('无气', "你被包围了！")
+						# self.getDown_spec(event, step=2, position=self.spec_position)
+						# 记录第一步成功下棋位置，为第二步做准备
+						self.spec_position = [y, x]
+						self.button3_position_list = [[y, x - 1], [y, x + 1], [y - 1, x], [y + 1, x]]
+						self.spec_step = 2
 					else:
-						# 重复棋局，警告打劫
+						# 不属于杀死对方或有气，则判断为无气，警告并弹出警告框
 						self.positions[y][x] = 0
 						self.canvas_bottom.delete('position' + str(x) + str(y))
-						self.recover(deadlist, (1 if self.present == 0 else 0))
 						self.bell()
-						self.showwarningbox("打劫", "此路不通！")
+						self.showwarningbox('无气', "你被包围了！")
 				else:
 					# 格子里已经有子覆盖，声音警告
 					self.bell()
 			else:
 				# 超出边界，声音警告
-				self.bell()
+					self.bell()
 
 	# 判断单个子周围有没有气
 	def get_status(self, position):
@@ -382,69 +490,6 @@ class Application(Tk):
 				continue
 		return dead_list
 
-	# 判断棋子（种类为yourChessman，位置为yourPosition）是否无气（死亡），有气则返回False，无气则返回无气棋子的列表
-	# 本函数是游戏规则的关键，初始deadlist只包含了自己的位置，每次执行时，函数尝试寻找yourPosition周围有没有空的位置，有则结束，返回False代表有气；
-	# 若找不到，则找自己四周的同类（不在deadlist中的）是否有气，即调用本函数，无气，则把该同类加入到deadlist，然后找下一个邻居，只要有一个有气，返回False代表有气；
-	# 若四周没有一个有气的同类，返回deadlist,至此结束递归
-
-	# def if_dead(self, deadList, yourChessman, yourPosition):
-	# 	# 第一个循环是看落子位置上下左右有没有气，感觉写的有点复杂，使用any函数和array矩阵处理方便点
-	# 	for i in [-1, 1]:
-	# 		if [yourPosition[0] + i, yourPosition[1]] not in deadList:
-	# 			if self.positions[yourPosition[1]][yourPosition[0] + i] == 0: # 当前位置无子
-	# 				return False
-	# 		if [yourPosition[0], yourPosition[1] + i] not in deadList:
-	# 			if self.positions[yourPosition[1] + i][yourPosition[0]] == 0:
-	# 				return False
-	# 	# 开始递归，坐标一个个移动，一共四个方向轮流递归
-	# 	if ([yourPosition[0] + 1, yourPosition[1]] not in deadList) and (
-	# 			self.positions[yourPosition[1]][yourPosition[0] + 1] == yourChessman): # 如果相邻棋子是同颜色的棋子
-	# 		# 将移动后的坐标加入dead_list递归
-	# 		midvar = self.if_dead(deadList + [[yourPosition[0] + 1, yourPosition[1]]], yourChessman,
-	# 							  [yourPosition[0] + 1, yourPosition[1]])
-	# 		if not midvar:
-	# 			return False
-	# 		else:
-	# 			deadList += copy.deepcopy(midvar)
-	# 	if ([yourPosition[0] - 1, yourPosition[1]] not in deadList) and (
-	# 			self.positions[yourPosition[1]][yourPosition[0] - 1] == yourChessman):
-	# 		midvar = self.if_dead(deadList + [[yourPosition[0] - 1, yourPosition[1]]], yourChessman,
-	# 							  [yourPosition[0] - 1, yourPosition[1]])
-	# 		if not midvar:
-	# 			return False
-	# 		else:
-	# 			deadList += copy.deepcopy(midvar)
-	# 	if ([yourPosition[0], yourPosition[1] + 1] not in deadList) and (
-	# 			self.positions[yourPosition[1] + 1][yourPosition[0]] == yourChessman):
-	# 		midvar = self.if_dead(deadList + [[yourPosition[0], yourPosition[1] + 1]], yourChessman,
-	# 							  [yourPosition[0], yourPosition[1] + 1])
-	# 		if not midvar:
-	# 			return False
-	# 		else:
-	# 			deadList += copy.deepcopy(midvar)
-	# 	if ([yourPosition[0], yourPosition[1] - 1] not in deadList) and (
-	# 			self.positions[yourPosition[1] - 1][yourPosition[0]] == yourChessman):
-	# 		midvar = self.if_dead(deadList + [[yourPosition[0], yourPosition[1] - 1]], yourChessman,
-	# 							  [yourPosition[0], yourPosition[1] - 1])
-	# 		if not midvar:
-	# 			return False
-	# 		else:
-	# 			deadList += copy.deepcopy(midvar)
-	# 	return deadList
-    #
-	# # 落子后，依次判断四周是否有棋子被杀死，并返回死棋位置列表
-	# def get_deadlist(self, x, y):
-	# 	deadlist = []
-	# 	for i in [-1, 1]:
-	# 		if self.positions[y][x + i] == (2 if self.present == 0 else 1) and ([x + i, y] not in deadlist):
-	# 			killList = self.if_dead([[x + i, y]], (2 if self.present == 0 else 1), [x + i, y])
-	# 			if not killList == False:
-	# 				deadlist += copy.deepcopy(killList)
-	# 		if self.positions[y + i][x] == (2 if self.present == 0 else 1) and ([x, y + i] not in deadlist):
-	# 			killList = self.if_dead([[x, y + i]], (2 if self.present == 0 else 1), [x, y + i])
-	# 			if not killList == False:
-	# 				deadlist += copy.deepcopy(killList)
-	# 	return deadlist
 
 	# 杀死位置列表killList中的棋子，即删除图片，位置值置0
 	def kill(self, killList):
@@ -478,9 +523,10 @@ class Application(Tk):
 
 # 声明全局变量，用于新建Application对象时切换成不同模式的游戏
 global newApp
+# spec_step = 1
 newApp=False
 if __name__=='__main__':
-	# 循环，直到不切换游戏模式，循环是为了每次循环相当一步棋，存储了一次棋谱
+	# 循环，直到不切换游戏模式
 	while True:
 		newApp=False
 		app=Application()
