@@ -10,15 +10,15 @@
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
   <component name="CoverageDataManager">
-    <SUITE FILE_PATH="coverage/weiqi_self$weiqi.coverage" NAME="weiqi Coverage Results" MODIFIED="1603343984305" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/weiqi_self$weiqi.coverage" NAME="weiqi Coverage Results" MODIFIED="1603355417636" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
   </component>
   <component name="FileEditorManager">
     <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
       <file leaf-file-name="weiqi.py" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/weiqi.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="270">
-              <caret line="355" column="62" lean-forward="true" selection-start-line="355" selection-start-column="62" selection-end-line="355" selection-end-column="62" />
+            <state relative-caret-position="355">
+              <caret line="444" column="60" lean-forward="false" selection-start-line="444" selection-start-column="60" selection-end-line="444" selection-end-column="60" />
               <folding>
                 <element signature="e#44#65#0" expanded="true" />
               </folding>
@@ -213,8 +213,8 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/weiqi.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="270">
-          <caret line="355" column="62" lean-forward="true" selection-start-line="355" selection-start-column="62" selection-end-line="355" selection-end-column="62" />
+        <state relative-caret-position="355">
+          <caret line="444" column="60" lean-forward="false" selection-start-line="444" selection-start-column="60" selection-end-line="444" selection-end-column="60" />
           <folding>
             <element signature="e#44#65#0" expanded="true" />
           </folding>
