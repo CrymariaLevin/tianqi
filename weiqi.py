@@ -18,8 +18,8 @@ class Application(Tk):
 		self.size = 1.8
 		# 棋盘每格的边长
 		self.dd = 360 * self.size / (self.mode_num - 1)
-		# 相对九路棋盘的矫正比例
-		self.p = 1 #if self.mode_num == 9 else (2 / 3 if self.mode_num == 13 else 4 / 9)
+		# 矫正比例
+		self.p = 1
 		# 定义棋盘阵列,超过边界：-1，无子：0，黑棋：1，白棋：2
 		self.positions = [[0 for i in range(self.mode_num + 1)] for i in range(self.mode_num + 1)]
 		# 初始化棋盘，所有超过边界的值置-1
@@ -27,7 +27,7 @@ class Application(Tk):
 			for n in range(self.mode_num + 1):
 				if (m * n == 0 or m == self.mode_num or n == self.mode_num):
 					self.positions[m][n] = -1
-		# 拷贝三份棋盘“快照”，悔棋和判断“打劫”时需要作参考，即最近的3步棋，这里的好像不太对
+		# 拷贝三份棋盘“快照”，悔棋和判断“打劫”时需要作参考，即最近的3步棋，初始设为都为无子
 		self.last_3_positions = copy.deepcopy(self.positions)
 		self.last_2_positions = copy.deepcopy(self.positions)
 		self.last_1_positions = copy.deepcopy(self.positions)
@@ -44,7 +44,7 @@ class Application(Tk):
 		self.spec_position = None # 特殊位置记录，记录第一步的落子位置
 		self.button3_position_list = None # 特殊棋第一步落子周边
 		self.if_jump = False # 是否是从特殊步跳过来的
-		self.spec_step = 1 # 特殊步数记录，用于特殊棋
+		self.spec_step = 1 # 特殊步序记录，用于特殊棋
 		self.spec_chance_b, self.spec_chance_w = 1, 1 # 各有一次特殊棋机会
 		# 图片资源，存放在当前目录下的/Pictures/中
 		self.photoW = PhotoImage(file="./Pictures/W.png")
@@ -53,6 +53,7 @@ class Application(Tk):
 		self.photoWD = PhotoImage(file="./Pictures/" + "WD" + "-" + '13' + ".png")
 		self.photoBU = PhotoImage(file="./Pictures/" + "BU" + "-" + '13' + ".png")
 		self.photoWU = PhotoImage(file="./Pictures/" + "WU" + "-" + '13' + ".png")
+		self.img_gif = PhotoImage(file='./Pictures/preview1.gif')
 		# 用于黑白棋子图片切换的列表
 		self.photoWBU_list = [self.photoBU, self.photoWU] #这是鼠标移动时的棋子切换
 		self.photoWBD_list = [self.photoBD, self.photoWD] #这是落子的棋子切换
@@ -63,6 +64,10 @@ class Application(Tk):
 		self.canvas_bottom.place(x=0, y=0)
 
 		# 几个功能按钮, command参数对应的命令都要在之后的函数里设置
+		self.startButton = Button(self, text='基本规则', command=self.basic_rule)
+		self.startButton.place(x=450 * self.size, y=150 * self.size)
+		self.startButton = Button(self, text='特殊规则', command=self.spec_rule)
+		self.startButton.place(x=510 * self.size, y=150 * self.size)
 		self.startButton = Button(self, text='开始游戏', command=self.start)
 		self.startButton.place(x=480 * self.size, y=200 * self.size)
 		self.passmeButton = Button(self, text='弃手', command=self.passme)
@@ -73,7 +78,7 @@ class Application(Tk):
 		self.regretButton['state'] = DISABLED
 		self.replayButton = Button(self, text='重新开始', command=self.reload)
 		self.replayButton.place(x=480 * self.size, y=275 * self.size)
-		self.newGameButton1 = Button(self, text='九格十路棋', command=self.newGame)
+		self.newGameButton1 = Button(self, text='真重新开始', command=self.newGame)
 		self.newGameButton1.place(x=480 * self.size, y=300 * self.size)		#
 		self.quitButton = Button(self, text='退出游戏', command=self.quit)
 		self.quitButton.place(x=480 * self.size, y=350 * self.size)
@@ -124,6 +129,18 @@ class Application(Tk):
 	# 事件处理函数的适配器，相当于中介，用于绑定事件时添加参数
 	def button3_adaptor(self, func, **kwds):
 		return lambda event, func=func, kwds=kwds: func(event, **kwds)
+
+	# 显示基本规则
+	def basic_rule(self):
+		# label_img = Label(self, image=self.img_gif)
+		# label_img.pack()
+		message = '基本规则和为其类似：\n如果周围格子内没有自己的子或者空格子就会被吃；\n最后以占地多少定胜负。'
+		tkinter.messagebox.showinfo('基本规则', message)
+
+	# 显示特殊规则
+	def spec_rule(self):
+		message = '每方在单次棋局中有一次使用特殊棋的机会\n可以在下子后向各个方向延伸一格继续下子\n该延伸的子无视格子内情况并替换为自己的子'
+		tkinter.messagebox.showinfo('特殊规则', message)
 
 	# 开始游戏函数，点击“开始游戏”时调用
 	def start(self):
@@ -214,6 +231,7 @@ class Application(Tk):
 		self.canvas_bottom.delete('image') # 清除所有棋子
 		self.regretchance = 0
 		self.present = 0
+		self.spec_chance_b, self.spec_chance_w = 1, 1  # 各有一次特殊棋机会
 		self.create_pB()
 		# for m in range(1, self.mode_num + 1):
 		# 	for n in range(1, self.mode_num + 1):
@@ -240,7 +258,7 @@ class Application(Tk):
 		self.canvas_bottom.delete(self.pB)
 
 	# 显示鼠标移动下棋子的移动
-	def shadow(self, event): # event好像是当前鼠标位置
+	def shadow(self, event): # event是当前鼠标位置
 		if not self.stop:
 			# 找到最近格点，在当前位置靠近的格点出显示棋子图片，并删除上一位置的棋子图片
 			# 在指定棋盘区域内才会显示
@@ -411,17 +429,21 @@ class Application(Tk):
 							self.last_1_positions = copy.deepcopy(self.positions)
 							# 删除上次的标记，重新创建标记
 							self.canvas_bottom.delete('image_added_sign')
-							# 画标记（本次落子），用于第二步的时候提示当前可落子位置
+							# 画特殊标记（本次落子），用于第二步的时候提示当前可落子位置
 							surroundings = [[-1,0],[1,0],[0,1],[0,-1]]
 							for m in surroundings:
-								self.image_added_sign = self.canvas_bottom.create_rectangle(
-									event.x - dx + round(dx / self.dd) * self.dd + 0.5 * self.dd + m[0] * self.dd,
-									event.y - dy + round(dy / self.dd) * self.dd + 0.5 * self.dd + m[1] * self.dd,
-									event.x - dx + round(dx / self.dd) * self.dd - 0.5 * self.dd + m[0] * self.dd,
-									event.y - dy + round(dy / self.dd) * self.dd - 0.5 * self.dd + m[1] * self.dd,
-									width=3, outline='#00FF7F')
-								self.canvas_bottom.addtag_withtag('image', self.image_added_sign)
-								self.canvas_bottom.addtag_withtag('image_added_sign', self.image_added_sign)
+								if self.positions[y+m[0]][x+m[1]] == -1: # 边界不标记
+									# print(y+m[0],',',x+m[1], self.positions[y+m[0]][x+m[1]])
+									continue
+								else:
+									self.image_added_sign = self.canvas_bottom.create_rectangle(
+										event.x - dx + round(dx / self.dd) * self.dd - 0.5 * self.dd + m[1] * self.dd,
+										event.y - dy + round(dy / self.dd) * self.dd - 0.5 * self.dd + m[0] * self.dd,
+										event.x - dx + round(dx / self.dd) * self.dd + 0.5 * self.dd + m[1] * self.dd,
+										event.y - dy + round(dy / self.dd) * self.dd + 0.5 * self.dd + m[0] * self.dd,
+										width=3, outline='#00FF7F')
+									self.canvas_bottom.addtag_withtag('image', self.image_added_sign)
+									self.canvas_bottom.addtag_withtag('image_added_sign', self.image_added_sign)
 							# self.getDown_spec(event, step=2, position=self.spec_position)
 							# 记录第一步成功下棋位置，为第二步做准备
 							self.spec_position = [y, x]
@@ -443,7 +465,6 @@ class Application(Tk):
 				# 没有特殊落子机会
 				self.bell()
 				self.showwarningbox('没有特殊机会', "你已经用完了特殊落子的机会！")
-
 
 	# 判断单个子周围有没有气
 	def get_status(self, position):
