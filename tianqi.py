@@ -139,7 +139,7 @@ class Application(Tk):
 
 	# 显示特殊规则
 	def spec_rule(self):
-		message = '每方在单次棋局中有一次使用特殊棋的机会\n可以在下子后向各个方向延伸一格继续下子\n该延伸的子无视格子内情况并替换为自己的子'
+		message = '每方在单次棋局中有一次使用特殊棋的机会（右键）\n可以在下子后向各个方向延伸一格继续下子\n该延伸的子无视格子内情况并替换为自己的子'
 		tkinter.messagebox.showinfo('特殊规则', message)
 
 	# 开始游戏函数，点击“开始游戏”时调用
