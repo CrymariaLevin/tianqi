@@ -53,7 +53,7 @@ class Application(Tk):
 		self.photoWD = PhotoImage(file="./Pictures/" + "WD" + "-" + '13' + ".png")
 		self.photoBU = PhotoImage(file="./Pictures/" + "BU" + "-" + '13' + ".png")
 		self.photoWU = PhotoImage(file="./Pictures/" + "WU" + "-" + '13' + ".png")
-		self.img_gif = PhotoImage(file='./Pictures/preview1.gif')
+		# self.img_gif = PhotoImage(file='./Pictures/preview1.gif')
 		# 用于黑白棋子图片切换的列表
 		self.photoWBU_list = [self.photoBU, self.photoWU] #这是鼠标移动时的棋子切换
 		self.photoWBD_list = [self.photoBD, self.photoWD] #这是落子的棋子切换
